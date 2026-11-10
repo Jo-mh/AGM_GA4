@@ -2337,6 +2337,27 @@ function resetBannerTimer() {
 
 resetBannerTimer();
 
+// ── GA4 이벤트: banner_view / banner_click (상단 메인 배너) ──
+function bannerParams(slide) {
+  return { banner_name: slide.dataset.bannerTitle, banner_position: Number(slide.dataset.bannerId) };
+}
+if ('IntersectionObserver' in window) {
+  const bannerViewObserver = new IntersectionObserver(entries => {
+    entries.forEach(en => {
+      if (!en.isIntersecting) return;
+      bannerViewObserver.unobserve(en.target);   // 슬라이드당 페이지 로드 1회
+      gtag('event', 'banner_view', bannerParams(en.target));
+    });
+  }, { threshold: 0.5 });
+  document.querySelectorAll('.banner-slide').forEach(s => bannerViewObserver.observe(s));
+}
+document.querySelectorAll('.banner-cta').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const slide = btn.closest('.banner-slide');
+    if (slide) gtag('event', 'banner_click', bannerParams(slide));
+  }, true);
+});
+
 // ────────────────────────────────
 // INIT
 // ────────────────────────────────
