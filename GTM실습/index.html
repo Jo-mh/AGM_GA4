@@ -1179,7 +1179,10 @@ function handlePromo(promoId) {
   if (promoId === 'signup-coupon') { currentUser ? showToast('이미 로그인되어 있습니다') : openSignupModal(); }
   else showToast('🚚 3만원 이상 주문 시 배송비가 무료입니다');
 }
-function handleEvent(eventId, category) { quickCategory(category); }
+function handleEvent(eventId, category) {
+  if (eventId === 'summer-sale') gtag('event', 'promotion_click', { promotion_name: '시원 할인 프로모션' });
+  quickCategory(category);
+}
 function handleFooterLink(name) { showToast(name + ' — 데모 사이트에서는 제공되지 않습니다'); }
 
 // ────────────────────────────────
@@ -1535,6 +1538,7 @@ function renderProductGrid(baseList) {
   document.getElementById('empty-result').style.display = visible.length ? 'none' : 'block';
 
   observeImpressions();
+  trackItemViews();
 }
 
 // ── 홈 프로모션 섹션 렌더링 ──
@@ -1587,6 +1591,7 @@ function renderHomeSections() {
         <span class="product-price">${p.price.toLocaleString()}원</span>
       </div>
     </div>`).join('');
+  trackItemViews();
 }
 
 // ── 특가 카운트다운 (자정 마감) ──
@@ -1616,6 +1621,39 @@ function observeImpressions() {
   }
   document.querySelectorAll('.product-card:not(.is-impression-tracked)').forEach(el => impressionObserver.observe(el));
 }
+
+// ── GA4 이벤트: item_view / item_click ──
+const ITEM_SECTIONS = [
+  { selector: '#today-deal-list .deal-card',         section: '특가' },
+  { selector: '#best-product-list .best-card',       section: '베스트' },
+  { selector: '#new-arrival-list .new-arrival-card', section: '신상품' },
+  { selector: '#product-grid .product-card',         section: '전체상품' },
+];
+function itemSectionOf(el) {
+  const hit = ITEM_SECTIONS.find(s => el.matches(s.selector));
+  return hit ? hit.section : null;
+}
+let itemViewObserver = null;
+function trackItemViews() {
+  if (!('IntersectionObserver' in window)) return;
+  if (!itemViewObserver) {
+    itemViewObserver = new IntersectionObserver(entries => {
+      entries.forEach(en => {
+        if (!en.isIntersecting) return;
+        itemViewObserver.unobserve(en.target);
+        gtag('event', 'item_view', { item_name: en.target.dataset.productName, section: itemSectionOf(en.target) });
+      });
+    }, { threshold: 0.5 });
+  }
+  ITEM_SECTIONS.forEach(s => document.querySelectorAll(s.selector).forEach(el => itemViewObserver.observe(el)));
+}
+document.addEventListener('click', e => {
+  if (e.target.closest('.btn-wishlist, .btn-add-to-cart')) return;
+  const card = e.target.closest('.deal-card, .best-card, .new-arrival-card, .product-card');
+  const section = card && itemSectionOf(card);
+  if (!section) return;
+  gtag('event', 'item_click', { item_name: card.dataset.productName, section });
+}, true);
 
 // ────────────────────────────────
 // PRODUCT DETAIL
@@ -1810,7 +1848,20 @@ function switchDetailTab(tab, btn) {
   document.getElementById('panel-' + tab).classList.add('is-active');
 }
 
+function trackDetailPurchaseEvent(name, productId) {
+  const product = PRODUCTS.find(p => p.id === productId);
+  if (!product) return;
+  const variant = getVariant(product, selectedVariantId);
+  gtag('event', name, {
+    item_name: product.name,
+    item_option: variant.label,
+    value: variant.price * detailQty,
+    currency: 'KRW',
+  });
+}
+
 function buyNow(productId) {
+  trackDetailPurchaseEvent('purchase', productId);
   addToCart(productId, detailQty, true, selectedVariantId);
   goCheckout();
 }
@@ -1859,6 +1910,7 @@ function syncDetailPrice() {
 }
 
 function addToCartFromDetail(productId) {
+  trackDetailPurchaseEvent('add_to_cart', productId);
   addToCart(productId, detailQty, false, selectedVariantId);
 }
 
