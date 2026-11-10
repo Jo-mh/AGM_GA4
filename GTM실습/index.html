@@ -1116,12 +1116,15 @@ function isWished(id) { return wishlist.includes(id); }
 function toggleWishlist(productId, event) {
   if (event) event.stopPropagation();
   const p = PRODUCTS.find(x => x.id === productId);
+  const fromDetail = !!(event && event.currentTarget && event.currentTarget.id === 'btn-wishlist-detail');
   if (isWished(productId)) {
     wishlist = wishlist.filter(id => id !== productId);
     showToast('찜 목록에서 제거했습니다');
+    if (fromDetail) trackDetailWishlistEvent('remove_from_wishlist', p);
   } else {
     wishlist.push(productId);
     showToast('♥ 찜 목록에 추가했습니다');
+    if (fromDetail) trackDetailWishlistEvent('add_to_wishlist', p);
   }
   saveWishlist();
   updateWishlistCount();
@@ -1133,6 +1136,18 @@ function toggleWishlist(productId, event) {
     }
   });
   if (document.getElementById('page-wishlist').classList.contains('is-active')) renderWishlistPage();
+}
+function trackDetailWishlistEvent(name, product) {
+  if (!product) return;
+  const variant = getVariant(product, selectedVariantId);
+  gtag('event', name, {
+    item_name: product.name,
+    item_option: variant.label,
+    value: variant.price,
+    currency: 'KRW',
+    click_location: 'product_detail',
+    login_status: currentUser ? 'logged_in' : 'logged_out',
+  });
 }
 function updateWishlistCount() { document.getElementById('wishlist-count').textContent = wishlist.length; }
 function renderWishlistPage() {
